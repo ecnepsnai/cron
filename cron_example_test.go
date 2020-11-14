@@ -3,7 +3,7 @@ package cron_test
 import "github.com/ecnepsnai/cron"
 
 func ExampleNew() {
-	schedule := cron.New([]cron.Job{
+	schedule, _ := cron.New([]cron.Job{
 		{
 			Pattern: "* * * * *",
 			Name:    "RunsEveryMinute",

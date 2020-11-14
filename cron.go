@@ -66,13 +66,20 @@ type Job struct {
 	Exec func()
 }
 
-// New create a tab for the given slice of jobs. Does not start the tab.
-func New(Jobs []Job) *Tab {
+// New create a tab for the given slice of jobs but do not start it. Error is only populated if there is a validation
+// error on any of the job patterns.
+func New(Jobs []Job) (*Tab, error) {
+	for _, job := range Jobs {
+		if err := job.Validate(); err != nil {
+			return nil, err
+		}
+	}
+
 	return &Tab{
 		Jobs:        Jobs,
 		Interval:    60 * time.Second,
 		ExpireAfter: nil,
-	}
+	}, nil
 }
 
 // Start will wait the next minute (up to 60 seconds) and then start the tab. This is the optimal way to start
