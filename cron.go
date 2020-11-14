@@ -95,13 +95,14 @@ func (s *Tab) ForceStart() {
 	for {
 		if s.ExpireAfter != nil {
 			if time.Since(*s.ExpireAfter).Seconds() > 0 {
-				log.Info("Tabr expired")
+				log.Debug("Tab expired")
 				return
 			}
 		}
 
 		for _, job := range s.Jobs {
 			if job.WouldRunNow() {
+				log.Debug("Running job: %s", job.Name)
 				go s.runJob(job)
 			}
 		}
@@ -117,12 +118,18 @@ func (s *Tab) StopSoon() {
 
 // WouldRunNow returns true if the pattern for the job matches the current time
 func (job Job) WouldRunNow() bool {
+	return job.wouldRunAtTime(time.Now())
+}
+
+// break this off into a dedicated function that can be unit tested
+func (job Job) wouldRunAtTime(clock time.Time) bool {
+	log.Debug("Job pattern: %s = %s", job.Name, job.Pattern)
+
 	if job.Pattern == "* * * * *" {
 		return true
 	}
 
 	components := strings.Split(job.Pattern, " ")
-	clock := time.Now()
 
 	return isItTime(components[0], clock.Minute()) &&
 		isItTime(components[1], clock.Hour()) &&
@@ -145,12 +152,12 @@ func (s *Tab) runJob(job Job) {
 	log.Debug("Starting scheduled job '%s'", job.Name)
 	defer func() {
 		if r := recover(); r != nil {
-			log.Error("Tabd job '%s' panicked. Error: %v\n", job.Name, r)
+			log.Error("Scheduled job '%s' panicked. Error: %v\n", job.Name, r)
 		}
 	}()
 	job.Exec()
 	elapsed := time.Since(start)
-	log.Info("Tabd job '%s' finished in %s", job.Name, elapsed)
+	log.Debug("Scheduled job '%s' finished in %s", job.Name, elapsed)
 }
 
 func toString(i int) string {
