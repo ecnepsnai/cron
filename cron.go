@@ -5,16 +5,17 @@
 //    * * * * *
 //    | | | | \
 //    | | | \  The day of the week (0 = Sunday, 6 = Saturday)
-//    | | \  The day of the month (1-31)
-//    | \  Month (1-12)
+//    | | \  Month (1-12)
+//    | \  The day of the month (1-31)
 //    \  Hour (0-23)
 //     Minute (0-59)
 //
-// Each component of the expression can be a numerical value, an expression, or a wildcard. All components must match
-// the current time for the job to run.
+// Each component of the expression can be: a single numerical value, a range, a comma-seperated list of numerical values,
+// an expression, or a wildcard. All components must match the current time for the job to run.
 //
 // If the component is a numerical value, then the same component (minute, hour, month, etc...) of the current time must
-// match the exact value for the component.
+// match the exact value for the component. If the component is a range, the current time value must fall between that range.
+// If the component is a comma-seperated list of numerical values, the current time must match any one of the values.
 //
 // Components can also be an expression for a mod operation, such as */5 or */2. Where if the remainder from the
 // current times component and the expression is zero, it matches.
@@ -25,8 +26,10 @@
 //     "* * * * *" Run every minute
 //     "0 * * * *" Run at the start of every hour
 //     "0 0 * * *" Run every day at midnight
-//     "*/5 * * *" Run every 5 minutes
-//     "* */2 * *" Run every 2 hours
+//     "*/5 * * * *" Run every 5 minutes
+//     "* */2 * * *" Run every 2 hours
+//     "0 9-17 * * *" Run every day at the start every hour between 9AM to 5PM
+//     "0 3,5,7 * * *" Run every day at 03:00, 05:00, 07:00
 //
 // Under normal circumstances cron is accurate up-to 1 second. Each job's method is called in a unique goroutine and
 // will recover from any panics.
@@ -139,9 +142,24 @@ func (job Job) wouldRunAtTime(clock time.Time) bool {
 }
 
 func isItTime(dateComponent string, currentValue int) bool {
-	if strings.Contains(dateComponent, "/") {
+	// We don't validate any of the values here since we do that when the tab is created
+	if strings.ContainsRune(dateComponent, '/') {
 		divideBy, _ := strconv.Atoi(strings.Split(dateComponent, "/")[1])
 		return currentValue%divideBy == 0
+	} else if strings.ContainsRune(dateComponent, '-') {
+		parts := strings.Split(dateComponent, "-")
+		start, _ := strconv.Atoi(parts[0])
+		end, _ := strconv.Atoi(parts[1])
+		return currentValue >= start && currentValue <= end
+	} else if strings.ContainsRune(dateComponent, ',') {
+		parts := strings.Split(dateComponent, ",")
+		for _, part := range parts {
+			value, _ := strconv.Atoi(part)
+			if currentValue == value {
+				return true
+			}
+		}
+		return false
 	}
 
 	return dateComponent == toString(currentValue) || dateComponent == "*"

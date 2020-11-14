@@ -8,8 +8,10 @@ import (
 )
 
 func TestCronStop(t *testing.T) {
+	t.Parallel()
+
 	var tab *cron.Tab
-	tab = cron.New([]cron.Job{
+	tab, _ = cron.New([]cron.Job{
 		{
 			Name:    "StopCron",
 			Pattern: "* * * * *",
@@ -23,15 +25,17 @@ func TestCronStop(t *testing.T) {
 }
 
 func TestCronPanic(t *testing.T) {
+	t.Parallel()
+
 	didPanic := 0
 	var tab *cron.Tab
-	tab = cron.New([]cron.Job{
+	tab, _ = cron.New([]cron.Job{
 		{
 			Name:    "PanicCron",
 			Pattern: "* * * * *",
 			Exec: func() {
 				didPanic = 1
-				panic("(intential panic)")
+				panic("(intentional panic)")
 			},
 		},
 	})
@@ -41,7 +45,7 @@ func TestCronPanic(t *testing.T) {
 	for {
 		i++
 		if i > 10 {
-			t.Fatalf("Tabd job never ran?")
+			t.Fatalf("Scheduled job never ran?")
 		}
 		if didPanic == 1 {
 			return
