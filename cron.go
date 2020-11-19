@@ -1,38 +1,49 @@
-// Package cron provides mechanism for executing scheduled tasks with cron-like expression.
+// Package cron provides a pure-go mechanism for executing scheduled tasks with cron patterns.
 //
-// Cron expressions are a simple and flexible way to configure a schedule for which an automated task should run.
+// Cron patterns are a simple and flexible way to configure a schedule for which an automated task should run.
 //
 //    * * * * *
 //    | | | | \
-//    | | | \  The day of the week (0 = Sunday, 6 = Saturday)
-//    | | \  Month (1-12)
+//    | | | \  The day of the week (0=Sunday - 6=Saturday or MON-FRI)
+//    | | \  Month (1=January - 12=December or JAN-DEC)
 //    | \  The day of the month (1-31)
 //    \  Hour (0-23)
 //     Minute (0-59)
 //
-// Each component of the expression can be: a single numerical value, a range, a comma-seperated list of numerical values,
-// an expression, or a wildcard. All components must match the current time for the job to run.
+// Each component of the pattern can be: a single numerical value, a range, a comma-separated list of numerical values,
+// an pattern, or a wildcard. Typically all values must match the current time for the job to run, however, when a day
+// of month or day of week is specified (not a wildcard) those two values are OR-d. This can be confusing to understand,
+// so know that the only real gotcha with this quirk is that there is no way to have a job run on a schedule such as
+// 'every Friday the 13th'. It would instead run on every Friday and the 13th of each month.
 //
 // If the component is a numerical value, then the same component (minute, hour, month, etc...) of the current time must
-// match the exact value for the component. If the component is a range, the current time value must fall between that range.
-// If the component is a comma-seperated list of numerical values, the current time must match any one of the values.
+// match the exact value for the component. If the component is a range, the current time value must fall between that
+// range. If the component is a comma-separated list of numerical values, the current time must match any one of the
+// values.
 //
-// Components can also be an expression for a mod operation, such as */5 or */2. Where if the remainder from the
-// current times component and the expression is zero, it matches.
+// Month and Day of Week values can also be the first three letters of the english name of that unit. For example,
+// JAN for January or THU for Thursday.
 //
-// Lastly, components can be a wildcard *, which will match any time value.
+// Components can also be an pattern for a mod operation, such as */5 or */2. Where if the remainder from the
+// current times component and the pattern is zero, it matches.
 //
-// Some common expressions are:
+// Lastly, components can be a wildcard *, which will match any value.
+//
+// Some example patterns are:
 //     "* * * * *" Run every minute
 //     "0 * * * *" Run at the start of every hour
 //     "0 0 * * *" Run every day at midnight
 //     "*/5 * * * *" Run every 5 minutes
 //     "* */2 * * *" Run every 2 hours
 //     "0 9-17 * * *" Run every day at the start every hour between 9AM to 5PM
-//     "0 3,5,7 * * *" Run every day at 03:00, 05:00, 07:00
+//     "0 3,5,7 * * *" Run every day at 3AM, 5AM, and 7AM
 //
-// Under normal circumstances cron is accurate up-to 1 second. Each job's method is called in a unique goroutine and
-// will recover from any panics.
+// Cron wakes up each minute to check for any jobs to run, then sleeps for the remainder of the minute. Under normal
+// circumstances cron is accurate up-to 1 second. Each job's method is called in a unique goroutine and will recover
+// from any panics.
+//
+// This package conforms to the POSIX crontab standard, which can be found here:
+// https://pubs.opengroup.org/onlinepubs/9699919799/utilities/crontab.html
 package cron
 
 import (
@@ -64,15 +75,18 @@ type Job struct {
 	Name string
 	// The method to invoke when the job runs
 	Exec func()
+
+	pattern []string
 }
 
-// New create a tab for the given slice of jobs but do not start it. Error is only populated if there is a validation
-// error on any of the job patterns.
+// New create a new cron instance (known as a "tab") for the given slice of jobs but do not start it.
+// Error is only populated if there is a validation error on any of the job patterns.
 func New(Jobs []Job) (*Tab, error) {
 	for _, job := range Jobs {
 		if err := job.Validate(); err != nil {
 			return nil, err
 		}
+		job.pattern = getRealPattern(job.Pattern)
 	}
 
 	return &Tab{
@@ -82,7 +96,7 @@ func New(Jobs []Job) (*Tab, error) {
 	}, nil
 }
 
-// Start will wait the next minute (up to 60 seconds) and then start the tab. This is the optimal way to start
+// Start will wait until the next minute (up to 60 seconds) and then start the tab. This is the optimal way to start
 // the tab since jobs will run at the start of the minute.
 //
 // This method blocks.
@@ -95,8 +109,8 @@ func (s *Tab) Start() {
 	s.ForceStart()
 }
 
-// ForceStart will start the schedule immediately. This can have the undesired effect of jobs running at most
-// 60 seconds later than they would if you used `Start`.
+// ForceStart will start the schedule immediately without waiting. This can have the undesired effect of jobs running
+// at most 60 seconds later than they would if you used `Start`.
 //
 // This method blocks.
 func (s *Tab) ForceStart() {
@@ -126,26 +140,57 @@ func (s *Tab) StopSoon() {
 	s.ExpireAfter = &e
 }
 
-// WouldRunNow returns true if the pattern for the job matches the current time
+// WouldRunNow returns true if this job would run right now
 func (job Job) WouldRunNow() bool {
-	return job.wouldRunAtTime(time.Now())
-}
-
-// break this off into a dedicated function that can be unit tested
-func (job Job) wouldRunAtTime(clock time.Time) bool {
 	log.Debug("Job pattern: %s = %s", job.Name, job.Pattern)
 
 	if job.Pattern == "* * * * *" {
 		return true
 	}
 
-	components := strings.Split(job.Pattern, " ")
+	if job.pattern == nil {
+		job.pattern = getRealPattern(job.Pattern)
+	}
 
-	return isItTime(components[0], clock.Minute()) &&
-		isItTime(components[1], clock.Hour()) &&
-		isItTime(components[2], clock.Day()) &&
-		isItTime(components[3], int(clock.Month())) &&
-		isItTime(components[4], int(clock.Weekday()))
+	return patternDoesMatch(job.pattern, time.Now())
+}
+
+// patternDoesMatch does the given pattern match the specified time
+func patternDoesMatch(pattern []string, clock time.Time) bool {
+	minute := pattern[0]
+	hour := pattern[1]
+	dayOfMonth := pattern[2]
+	month := pattern[3]
+	dayOfWeek := pattern[4]
+
+	minuteMatch := isItTime(minute, clock.Minute())
+	hourMatch := isItTime(hour, clock.Hour())
+	dayOfMonthMatch := isItTime(dayOfMonth, clock.Day())
+	monthMatch := isItTime(month, int(clock.Month()))
+	dayOfWeekMatch := isItTime(dayOfWeek, int(clock.Weekday()))
+
+	dowIsStar := dayOfWeek == "*"
+	domIsStar := dayOfMonth == "*"
+
+	var dateOfMatch bool
+	// From the spec:
+	//
+	//   if either the month or day of month is specified as an element or list, and the day of week is also specified
+	//   as an element or list, then any day matching either the month and day of month, or the day of week, shall be
+	//   matched.
+	//
+	// 'element or list' means it is not a wildcard *
+	// So, to put it in simpler terms, if the day-of-week and day-of-month are both not wildcards, those two values are
+	// OR-d. If either or both the day-of-week or day-of-month are wildcards, those two values are AND-d.
+	//
+	// To quote the SysV cron source "this routine is hard to understand"
+	if !dowIsStar && !domIsStar {
+		dateOfMatch = dayOfMonthMatch || dayOfWeekMatch
+	} else {
+		dateOfMatch = dayOfMonthMatch && dayOfWeekMatch
+	}
+
+	return (minuteMatch && hourMatch && monthMatch) && dateOfMatch
 }
 
 func isItTime(dateComponent string, currentValue int) bool {

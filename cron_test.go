@@ -53,3 +53,23 @@ func TestCronPanic(t *testing.T) {
 		time.Sleep(1 * time.Millisecond)
 	}
 }
+
+func TestCronNewInvalid(t *testing.T) {
+	t.Parallel()
+
+	tab, err := cron.New([]cron.Job{
+		{
+			Name:    "IsInvalid",
+			Pattern: "????",
+			Exec: func() {
+				//
+			},
+		},
+	})
+	if err == nil {
+		t.Fatalf("No error seen when creating new invlaid crontab")
+	}
+	if tab != nil {
+		t.Fatalf("Tab returned with invalid job")
+	}
+}

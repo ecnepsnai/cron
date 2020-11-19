@@ -23,6 +23,7 @@ func TestValidate(t *testing.T) {
 	expect(false, "0 0 0 0 0")
 	expect(false, "foo")
 	expect(false, "0 */-1 * * *")
+	expect(true, "0 */2 * * *")
 	expect(false, "0 */f * * *")
 	expect(false, "61 0 0 0 0")
 	expect(false, "* * * * * *")
@@ -37,4 +38,8 @@ func TestValidate(t *testing.T) {
 	expect(false, "0 12,f * * *")
 	expect(false, "0 12, * * *")
 	expect(false, "0 12,25 * * *")
+	expect(true, "0 0 1 JAN *")
+	expect(true, "0 0 * JAN MON")
+	expect(false, "0 0 * MON JAN")
+	expect(false, "0 NULL 1 MON *")
 }
