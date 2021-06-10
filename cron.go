@@ -38,12 +38,15 @@
 //     "0 9-17 * * *" Run every day at the start every hour between 9AM to 5PM
 //     "0 3,5,7 * * *" Run every day at 3AM, 5AM, and 7AM
 //
+// This package conforms to the POSIX crontab standard, which can be found here:
+// https://pubs.opengroup.org/onlinepubs/9699919799/utilities/crontab.html
+//
 // Cron wakes up each minute to check for any jobs to run, then sleeps for the remainder of the minute. Under normal
 // circumstances cron is accurate up-to 1 second. Each job's method is called in a unique goroutine and will recover
 // from any panics.
 //
-// This package conforms to the POSIX crontab standard, which can be found here:
-// https://pubs.opengroup.org/onlinepubs/9699919799/utilities/crontab.html
+// By default, Cron operates using the local timezone as determined by Golang, but this can be changed with the TZ field
+// of a Tab object.
 package cron
 
 import (
@@ -65,6 +68,8 @@ type Tab struct {
 	ExpireAfter *time.Time
 	// The frequency to check if the jobs should run. By default this is 60 seconds and should not be changed.
 	Interval time.Duration
+	// The timezone to use when checking if jobs should run. Defaults to the local timezone as determined by Go.
+	TZ *time.Location
 }
 
 // Job describes a single job that will run based on the pattern
@@ -93,6 +98,7 @@ func New(Jobs []Job) (*Tab, error) {
 		Jobs:        Jobs,
 		Interval:    60 * time.Second,
 		ExpireAfter: nil,
+		TZ:          time.Local,
 	}, nil
 }
 
@@ -125,8 +131,11 @@ func (s *Tab) ForceStart() {
 		}
 
 		for _, job := range s.Jobs {
-			if job.WouldRunNow() {
-				log.Debug("Running job: %s", job.Name)
+			if job.WouldRunNowInTZ(s.TZ) {
+				log.PDebug("Running job", map[string]interface{}{
+					"name":    job.Name,
+					"pattern": job.Pattern,
+				})
 				go s.runJob(job)
 			}
 		}
@@ -140,10 +149,13 @@ func (s *Tab) StopSoon() {
 	s.ExpireAfter = &e
 }
 
-// WouldRunNow returns true if this job would run right now
+// WouldRunNow returns true if this job would run right now in the current timezone
 func (job Job) WouldRunNow() bool {
-	log.Debug("Job pattern: %s = %s", job.Name, job.Pattern)
+	return job.WouldRunNowInTZ(time.Local)
+}
 
+// WouldRunNowInTZ returns true if this job would run right now in the given timezone
+func (job Job) WouldRunNowInTZ(tz *time.Location) bool {
 	if job.Pattern == "* * * * *" {
 		return true
 	}
@@ -152,7 +164,7 @@ func (job Job) WouldRunNow() bool {
 		job.pattern = getRealPattern(job.Pattern)
 	}
 
-	return patternDoesMatch(job.pattern, time.Now())
+	return patternDoesMatch(job.pattern, time.Now().In(tz))
 }
 
 // patternDoesMatch does the given pattern match the specified time
@@ -219,15 +231,23 @@ func isItTime(dateComponent string, currentValue int) bool {
 
 func (s *Tab) runJob(job Job) {
 	start := time.Now()
-	log.Debug("Starting scheduled job '%s'", job.Name)
+	log.PDebug("Starting scheduled job", map[string]interface{}{
+		"name": job.Name,
+	})
 	defer func() {
 		if r := recover(); r != nil {
-			log.Error("Scheduled job '%s' panicked. Error: %v\n", job.Name, r)
+			log.PError("Scheduled job panicked", map[string]interface{}{
+				"name":  job.Name,
+				"error": r,
+			})
 		}
 	}()
 	job.Exec()
 	elapsed := time.Since(start)
-	log.Debug("Scheduled job '%s' finished in %s", job.Name, elapsed)
+	log.PDebug("Scheduled job finished", map[string]interface{}{
+		"name":    job.Name,
+		"elapsed": elapsed.String(),
+	})
 }
 
 func toString(i int) string {

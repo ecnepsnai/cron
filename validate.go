@@ -41,7 +41,7 @@ func (job Job) Validate() error {
 	}
 	components := strings.Split(job.Pattern, " ")
 	if len(components) != 5 {
-		return fmt.Errorf("Invalid number of date components")
+		return fmt.Errorf("invalid number of date components")
 	}
 
 	dateUnits := []string{
@@ -78,10 +78,10 @@ func (job Job) Validate() error {
 		} else {
 			v, err := strconv.Atoi(component)
 			if err != nil {
-				return fmt.Errorf("Invalid %s value: %s", unit, err.Error())
+				return fmt.Errorf("invalid %s value: %s", unit, err.Error())
 			}
 			if !validateDateComponent(v, i) {
-				return fmt.Errorf("Invalid %s value", unit)
+				return fmt.Errorf("invalid %s value", unit)
 			}
 		}
 	}
@@ -92,14 +92,14 @@ func (job Job) Validate() error {
 func validateExpression(component string, unit string, i int) error {
 	parts := strings.Split(component, "/")
 	if len(parts) > 2 {
-		return fmt.Errorf("Invalid %s expression", unit)
+		return fmt.Errorf("invalid %s expression", unit)
 	}
 	value, err := strconv.Atoi(parts[1])
 	if err != nil {
-		return fmt.Errorf("Invalid %s expression: %s", unit, err.Error())
+		return fmt.Errorf("invalid %s expression: %s", unit, err.Error())
 	}
 	if !validateDateComponent(value, i) {
-		return fmt.Errorf("Invalid %s expression", unit)
+		return fmt.Errorf("invalid %s expression", unit)
 	}
 
 	return nil
@@ -108,21 +108,21 @@ func validateExpression(component string, unit string, i int) error {
 func validateRange(component string, unit string, i int) error {
 	parts := strings.Split(component, "-")
 	if len(parts) > 2 {
-		return fmt.Errorf("Invalid %s range", unit)
+		return fmt.Errorf("invalid %s range", unit)
 	}
 	left, err := strconv.Atoi(parts[0])
 	if err != nil {
-		return fmt.Errorf("Invalid %s range: %s", unit, err.Error())
+		return fmt.Errorf("invalid %s range: %s", unit, err.Error())
 	}
 	right, err := strconv.Atoi(parts[1])
 	if err != nil {
-		return fmt.Errorf("Invalid %s range: %s", unit, err.Error())
+		return fmt.Errorf("invalid %s range: %s", unit, err.Error())
 	}
 	if left > right || left == right {
-		return fmt.Errorf("Invalid %s range", unit)
+		return fmt.Errorf("invalid %s range", unit)
 	}
 	if !validateDateComponent(left, i) || !validateDateComponent(right, i) {
-		return fmt.Errorf("Invalid %s expression", unit)
+		return fmt.Errorf("invalid %s expression", unit)
 	}
 
 	return nil
@@ -132,10 +132,10 @@ func validateList(component string, unit string, i int) error {
 	for _, part := range strings.Split(component, ",") {
 		value, err := strconv.Atoi(part)
 		if err != nil {
-			return fmt.Errorf("Invalid %s list: %s", unit, err.Error())
+			return fmt.Errorf("invalid %s list: %s", unit, err.Error())
 		}
 		if !validateDateComponent(value, i) {
-			return fmt.Errorf("Invalid %s list", unit)
+			return fmt.Errorf("invalid %s list", unit)
 		}
 	}
 
@@ -149,11 +149,11 @@ func validateName(component string, unit string, i int) error {
 	} else if i == 4 {
 		m = weekdayMap
 	} else {
-		return fmt.Errorf("Invalid %s value", unit)
+		return fmt.Errorf("invalid %s value", unit)
 	}
 
 	if _, ok := m[component]; !ok {
-		return fmt.Errorf("Invalid %s value", unit)
+		return fmt.Errorf("invalid %s value", unit)
 	}
 
 	return nil

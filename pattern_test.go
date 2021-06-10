@@ -67,3 +67,21 @@ func TestJobWouldRunNow(t *testing.T) {
 		t.Errorf("Incorrect WouldRunNow result for all wildcard pattern")
 	}
 }
+
+func TestWouldRunNowInTZ(t *testing.T) {
+	t.Parallel()
+
+	job := Job{Pattern: "* * * * *"}
+	if !job.WouldRunNowInTZ(time.UTC) {
+		t.Errorf("Incorrect WouldRunNowInTZ result for all wildcard pattern")
+	}
+
+	hour := time.Now().Hour()
+	_, offset := time.Now().Zone()
+	hour += offset
+
+	job = Job{Pattern: fmt.Sprintf("* %d * * *", hour)}
+	if !job.WouldRunNowInTZ(time.UTC) {
+		t.Errorf("Incorrect WouldRunNowInTZ result for all wildcard pattern")
+	}
+}
