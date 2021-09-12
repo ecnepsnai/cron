@@ -58,7 +58,7 @@ import (
 	"github.com/ecnepsnai/logtic"
 )
 
-var log = logtic.Connect("cron")
+var log = logtic.Log.Connect("cron")
 
 // Tab describes a group of jobs, known as a "Tab"
 type Tab struct {
