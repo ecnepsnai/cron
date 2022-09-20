@@ -2,12 +2,12 @@
 //
 // Cron patterns are a simple and flexible way to configure a schedule for which an automated task should run.
 //
-//    * * * * *
-//    | | | | \
-//    | | | \  The day of the week (0=Sunday - 6=Saturday or MON-FRI)
-//    | | \  Month (1=January - 12=December or JAN-DEC)
-//    | \  The day of the month (1-31)
-//    \  Hour (0-23)
+//   - * * * *
+//     | | | | \
+//     | | | \  The day of the week (0=Sunday - 6=Saturday or MON-FRI)
+//     | | \  Month (1=January - 12=December or JAN-DEC)
+//     | \  The day of the month (1-31)
+//     \  Hour (0-23)
 //     Minute (0-59)
 //
 // Each component of the pattern can be: a single numerical value, a range, a comma-separated list of numerical values,
@@ -30,13 +30,14 @@
 // Lastly, components can be a wildcard *, which will match any value.
 //
 // Some example patterns are:
-//     "* * * * *" Run every minute
-//     "0 * * * *" Run at the start of every hour
-//     "0 0 * * *" Run every day at midnight
-//     "*/5 * * * *" Run every 5 minutes
-//     "* */2 * * *" Run every 2 hours
-//     "0 9-17 * * *" Run every day at the start every hour between 9AM to 5PM
-//     "0 3,5,7 * * *" Run every day at 3AM, 5AM, and 7AM
+//
+//	"* * * * *" Run every minute
+//	"0 * * * *" Run at the start of every hour
+//	"0 0 * * *" Run every day at midnight
+//	"*/5 * * * *" Run every 5 minutes
+//	"* */2 * * *" Run every 2 hours
+//	"0 9-17 * * *" Run every day at the start every hour between 9AM to 5PM
+//	"0 3,5,7 * * *" Run every day at 3AM, 5AM, and 7AM
 //
 // This package conforms to the POSIX crontab standard, which can be found here:
 // https://pubs.opengroup.org/onlinepubs/9699919799/utilities/crontab.html
@@ -51,6 +52,7 @@ package cron
 
 import (
 	"fmt"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -236,10 +238,11 @@ func (s *Tab) runJob(job Job) {
 	})
 	defer func() {
 		if r := recover(); r != nil {
-			log.PError("Scheduled job panicked", map[string]interface{}{
+			log.PError("Recovered from job panic", map[string]interface{}{
 				"name":  job.Name,
-				"error": r,
+				"error": fmt.Sprintf("%s", r),
 			})
+			log.Debug("%s", debug.Stack())
 		}
 	}()
 	job.Exec()
