@@ -48,6 +48,10 @@
 //
 // By default, Cron operates using the local timezone as determined by Golang, but this can be changed with the TZ field
 // of a Tab object.
+//
+// Deprecated: github.com/ecnepsnai/cron is deprecated and replaced by git.ecn.io/ian/cron. All users should migrate to
+// git.ecn.io/ian/cron for continued updates. Tag v1.0.0 is drop-in compatible copy of the last release of
+// github.com/ecnepsnai/cron.
 package cron
 
 import (
